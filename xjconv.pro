@@ -4,9 +4,14 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 SOURCES += main.cpp \
-    xmllexer.cpp
+    xmllexer.cpp \
+    xmlparser.cpp
 
 HEADERS += \
-    xmllexer.h
+    xmllexer.h \
+    xmlparser.h \
+    element.h \
+    simpleelement.h \
+    complexelement.h
 
 LIBS += -licuio -licuuc

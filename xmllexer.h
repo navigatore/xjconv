@@ -9,7 +9,7 @@
 class XmlLexer
 {
 public:
-    enum TokenType { unspecified, endOfFile, key, value, string, hex, special, comment, tagStart, closingTagStart, tagEnd, emptyTagEnd, xmlTagOpen, xmlTagClose, doctypeTagOpen, doctypeTagClose, equals, specialChar, hexChar, startComment, endComment, singleQuote, doubleQuote };
+    enum TokenType { unspecified, endOfFile, key, value, string, hex, special, comment, tagStart, closingTagStart, tagEnd, emptyTagEnd, xmlTagOpen, xmlTagClose, doctypeTagOpen, equals, specialChar, hexChar, startComment, endComment, singleQuote, doubleQuote };
     struct Token
     {
         TokenType type;
