@@ -1,140 +1,204 @@
 #include "xmlparser.h"
-#include "complexelement.h"
+#include "element.h"
 
 //*********************************************************************************************************************
 XmlParser::XmlParser(UnicodeString input) : lexer(input)
 {
-    domRoot = std::shared_ptr<ComplexElement>(new ComplexElement("root", "root"));
+    domRoot = std::shared_ptr<Element>(new Element("/", "/"));
+    token = lexer.read(XmlLexer::key);
+    documentRule(domRoot);
 }
 //*********************************************************************************************************************
-void XmlParser::documentRule(ComplexElementP elem)
+void XmlParser::documentRule(ElementP elem)
 {
     if (token.type == XmlLexer::xmlTagOpen || token.type == XmlLexer::doctypeTagOpen)
         prologRule(elem);
     elementRule(elem);
 }
 //*********************************************************************************************************************
-void XmlParser::prologRule(ComplexElementP elem)
+void XmlParser::prologRule(ElementP elem)
 {
     do
     {
         if (token.type == XmlLexer::xmlTagOpen)
             xmlTagRule(elem);
         else if (token.type == XmlLexer::doctypeTagOpen)
-            doctypeTagRule();
+            doctypeTagRule(elem);
         else
             throw -1;
-    } while (token.type == XmlLexer::xmlTagOpen || token.type == XmlLexer::xmlTagClose);
+    } while (token.type == XmlLexer::xmlTagOpen || token.type == XmlLexer::doctypeTagOpen);
 }
 //*********************************************************************************************************************
-void XmlParser::xmlTagRule(ComplexElementP elem)
+void XmlParser::xmlTagRule(ElementP elem)
 {
-    if (token.type == XmlLexer::xmlTagOpen)
-    {
-        token = lexer.read(XmlLexer::key);
-        tagInteriorRule();
-        if (token.type == XmlLexer::xmlTagClose)
-            token = lexer.read(XmlLexer::string);
-        else
-            throw -1;
-    }
-    else
-        throw -1;
+    takeXmlTagOpen();
+    ElementP xmlElem = ElementP(new Element());
+    elem->addElement(xmlElem);
+    tagInteriorRule(xmlElem);
+    takeXmlTagClose();
 }
 //*********************************************************************************************************************
-void XmlParser::doctypeTagRule()
+void XmlParser::doctypeTagRule(ElementP elem)
 {
-    if (token.type == XmlLexer::doctypeTagOpen)
-    {
-        token = lexer.read(XmlLexer::key);
-        tagInteriorRule();
-        if (token.type == XmlLexer::tagEnd)
-            token = lexer.read(XmlLexer::string);
-        else
-            throw -1;
-    }
-    else
-        throw -1;
+    takeDoctypeTagOpen();
+    ElementP doctypeElem(new Element());
+    elem->addElement(doctypeElem);
+    tagInteriorRule(doctypeElem);
+    takeTagEnd();
 }
 //*********************************************************************************************************************
-void XmlParser::elementRule(ComplexElementP elem)
+bool XmlParser::elementRule(ElementP root)
 {
     // It is possible that there is nothing where element was expected
-    if (token.type == XmlLexer::tagStart || token.type == XmlLexer::closingTagStart)
-        return;
+    if (token.type == XmlLexer::closingTagStart)
+        return false;
 
     if (token.type == XmlLexer::tagStart)
     {
-        token = lexer.read(XmlLexer::key);
-        tagInteriorRule(elem);
-        if (token.type != XmlLexer::emptyTagEnd)
+        takeTagStart();
+        ElementP tagElem = ElementP(new Element());
+        root->addElement(tagElem);
+        tagInteriorRule(tagElem);
+
+        if (token.type == XmlLexer::emptyTagEnd)
         {
-            elementRule(elem);
+            takeEmptyTagEnd();
+        }
+        else if(token.type == XmlLexer::tagEnd)
+        {
+            takeTagEnd();
+            while(elementRule(tagElem));
             closingTagRule();
         }
+        else
+            throw -1;
     }
     else if (token.type == XmlLexer::string)
-        ;
+    {
+        ElementP stringElem = ElementP(new Element(token.content));
+        takeString();
+        root->addElement(stringElem);
+    }
     else
         throw -1;
-}
-//*********************************************************************************************************************
-void XmlParser::tagInteriorRule(ComplexElementP elem)
-{
-    ComplexElementP newElem = ComplexElementP(new ComplexElement());
-    elem->addElement(newElem);
-    nameRule(newElem);
-    while (token.type == XmlLexer::key)
-        attributeRule(newElem);
-}
 
+    return true;
+}
 //*********************************************************************************************************************
-void XmlParser::attributeRule(ComplexElementP elem)
+void XmlParser::tagInteriorRule(ElementP elem)
 {
-    ComplexElementP attr = ComplexElementP(new ComplexElement());
+    nameRule(elem);
+    while (token.type == XmlLexer::key)
+        attributeRule(elem);
+}
+//*********************************************************************************************************************
+void XmlParser::attributeRule(ElementP elem)
+{
+    ElementP attr = ElementP(new Element());
     elem->addElement(attr);
-    nameRule(attr);
+    nameRule(attr, true);
     if (token.type == XmlLexer::equals)
     {
-        token = lexer.read(XmlLexer::key);
-        SimpleElementP value = SimpleElementP(new SimpleElement());
+        takeEquals();
+        ElementP value = ElementP(new Element());
         attr->addElement(value);
-        valueRule();
+        valueRule(value);
     }
 }
 //*********************************************************************************************************************
-void XmlParser::nameRule(ComplexElementP elem)
+void XmlParser::nameRule(ElementP elem, bool isAttribute)
 {
-    elem->setName(token.content);
-    elem->setNameAfterMap(token.content);
+    if (isAttribute)
+        elem->setName("@" + token.content);
+    else
+        elem->setName(token.content);
     token = lexer.read(XmlLexer::key);
 }
 //*********************************************************************************************************************
-void XmlParser::valueRule()
+void XmlParser::valueRule(ElementP elem)
 {
-    // HOHO HO HO
+
+    if (token.type == XmlLexer::doubleQuote)
+    {
+        token = lexer.read(XmlLexer::value);
+        elem->setName(token.content);
+        token = lexer.read(XmlLexer::key);
+        if (token.type != XmlLexer::doubleQuote)
+            throw -1;
+    }
+    else if (token.type == XmlLexer::singleQuote)
+    {
+        token = lexer.read(XmlLexer::value);
+        elem->setName(token.content);
+        token = lexer.read(XmlLexer::key);
+        if (token.type != XmlLexer::singleQuote)
+            throw -1;
+    }
+    else
+        throw -1;
+    token = lexer.read(XmlLexer::key);
 }
 //*********************************************************************************************************************
 void XmlParser::closingTagRule()
 {
-    if (token.type == XmlLexer::closingTagStart)
-    {
-        token = lexer.read(XmlLexer::key);
-        if (token.type == XmlLexer::key)
-        {
-            token = lexer.read(XmlLexer::key);
-            if (token.type != XmlLexer::tagEnd)
-            {
-                throw -1;
-            }
-        }
-        else
-        {
-            throw -1;
-        }
-    }
-    else
+    takeClosingTagStart();
+    if(token.type != XmlLexer::key)
         throw -1;
+    token = lexer.read(XmlLexer::key);
+    takeTagEnd();
 }
-
+//*********************************************************************************************************************
+void XmlParser::takeTagStart()
+{
+    take(XmlLexer::tagStart, XmlLexer::key);
+}
+//*********************************************************************************************************************
+void XmlParser::takeEmptyTagEnd()
+{
+    take(XmlLexer::emptyTagEnd, XmlLexer::string);
+}
+//*********************************************************************************************************************
+void XmlParser::takeTagEnd()
+{
+    take(XmlLexer::tagEnd, XmlLexer::string);
+}
+//*********************************************************************************************************************
+void XmlParser::takeString()
+{
+    take(XmlLexer::string, XmlLexer::key);
+}
+//*********************************************************************************************************************
+void XmlParser::takeClosingTagStart()
+{
+    take(XmlLexer::closingTagStart, XmlLexer::key);
+}
+//*********************************************************************************************************************
+void XmlParser::takeEquals()
+{
+    take(XmlLexer::equals, XmlLexer::key);
+}
+//*********************************************************************************************************************
+void XmlParser::takeXmlTagOpen()
+{
+    take(XmlLexer::xmlTagOpen, XmlLexer::key);
+}
+//*********************************************************************************************************************
+void XmlParser::takeXmlTagClose()
+{
+    take(XmlLexer::xmlTagClose, XmlLexer::string);
+}
+//*********************************************************************************************************************
+void XmlParser::takeDoctypeTagOpen()
+{
+    take(XmlLexer::doctypeTagOpen, XmlLexer::key);
+}
+//*********************************************************************************************************************
+void XmlParser::take(XmlLexer::TokenType tokenType, XmlLexer::TokenType nextExpectedType)
+{
+    if (token.type != tokenType)
+    {
+        throw -1;
+    }
+    token = lexer.read(nextExpectedType);
+}
 //*********************************************************************************************************************

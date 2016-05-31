@@ -16,8 +16,6 @@
 #include "xmlparser.h"
 #include <memory>
 #include "element.h"
-#include "complexelement.h"
-#include "simpleelement.h"
 
 using namespace std;
 
@@ -61,21 +59,15 @@ int main(int argc, char* argv[])
 void printOffset(int offset)
 {
     for (int i = 0 ; i < offset ; ++i)
-        cout << "| ";
+        cout << "|   ";
 }
 
-void analyzeDom(std::shared_ptr<Element> root, int offset)
+void analyzeDom(ElementP root, int offset)
 {
     printOffset(offset);
-    if (!root->complex())
-    {
-        auto elem = dynamic_pointer_cast<SimpleElement>(root);
-        cout << elem->getContent() << endl;
-    }
-    std::shared_ptr<ComplexElement> rt = dynamic_pointer_cast<ComplexElement>(root);
-    cout << rt->getName() << endl;
+    cout << root->getName() << endl;
 
-    for (auto child : rt->getChildren())
+    for (auto child : root->getChildren())
         analyzeDom(child, offset+1);
 }
 //*********************************************************************************************************************

@@ -4,10 +4,6 @@ XmlLexer::XmlLexer(UnicodeString &input) : it(input), pos(0) { }
 //*********************************************************************************************************************
 XmlLexer::Token XmlLexer::read(TokenType expected)
 {
-    if (expected == comment)
-    {
-        return readComment();
-    }
     if (expected == string)
     {
         return readString();
@@ -15,14 +11,6 @@ XmlLexer::Token XmlLexer::read(TokenType expected)
     if (expected == value)
     {
         return readValue();
-    }
-    if (expected == hexChar)
-    {
-        return readHex();
-    }
-    if (expected == specialChar)
-    {
-        return readSpecial();
     }
     else    // expected -> key
     {
@@ -32,10 +20,7 @@ XmlLexer::Token XmlLexer::read(TokenType expected)
 //*********************************************************************************************************************
 bool XmlLexer::currentIsStringChar()
 {
-    return it.hasNext()
-            && it.current() != '<'
-            && it.current() != '>'
-            && it.current() != '&';
+    return it.hasNext() && ( it.current() != '<' && it.current() != '>');
 }
 //*********************************************************************************************************************
 bool XmlLexer::currentIsValueChar()
@@ -101,8 +86,7 @@ XmlLexer::Token XmlLexer::readComment()
     {
         if (prev2 == '-' && prev1 == '-' && it.current() == '>')
         {
-            it.previous();
-            it.previous();
+            it.next();
             break;
         }
         builder.append(prev2);
@@ -122,12 +106,44 @@ XmlLexer::Token XmlLexer::readString()
     UnicodeString builder = "";
     while (currentIsStringChar())
     {
-        builder.append(it.current());
-        it.next();
+        if (it.current() == '&')
+        {
+            it.next();
+            if (it.hasNext() && it.current() == '#')
+            {
+                it.next();
+                builder.append(getHex());
+            }
+            else if (it.hasNext())
+            {
+                builder.append(getSpecial());
+            }
+            else
+                throw -1;
+        }
+        else
+        {
+            builder.append(it.current());
+            it.next();
+        }
     }
     Token token;
     token.type = string;
     token.content = builder;
+
+    bool onlyWhite = true;
+    for(int i = 0 ; i < token.content.length() ; ++i)
+    {
+        if (! (token.content[i] == '\t' || token.content[i] == ' ' || token.content[i] == '\r' || token.content[i] == '\n') )
+        {
+            onlyWhite = false;
+            break;
+        }
+    }
+
+    if(onlyWhite)
+        token = read(key);
+
     return token;
 }
 //*********************************************************************************************************************
@@ -136,8 +152,26 @@ XmlLexer::Token XmlLexer::readValue()
     UnicodeString builder = "";
     while (currentIsValueChar())
     {
-        builder.append(it.current());
-        it.next();
+        if (it.current() == '&')
+        {
+            it.next();
+            if (it.hasNext() && it.current() == '#')
+            {
+                it.next();
+                builder.append(getHex());
+            }
+            else if (it.hasNext())
+            {
+                builder.append(getSpecial());
+            }
+            else
+                throw -1;
+        }
+        else
+        {
+            builder.append(it.current());
+            it.next();
+        }
     }
     Token token;
     token.type = value;
@@ -145,9 +179,9 @@ XmlLexer::Token XmlLexer::readValue()
     return token;
 }
 //*********************************************************************************************************************
-XmlLexer::Token XmlLexer::readHex()
+UChar XmlLexer::getHex()
 {
-    UnicodeString builder = "";
+    UChar builder;
     int i;
     int escaped = 0;
     for (i = 0; currentIsHexChar() && i < 4; ++i)
@@ -159,20 +193,15 @@ XmlLexer::Token XmlLexer::readHex()
     if (i == 4 && it.hasNext() && it.current() == ';')
     {
         it.next();
-        builder.append(static_cast<UChar>(escaped));
-        Token token;
-        token.type = hexChar;
-        token.content = builder;
-        return token;
+        builder=static_cast<UChar>(escaped);
+        return builder;
     }
     throw -1;
 }
 //*********************************************************************************************************************
-XmlLexer::Token XmlLexer::readSpecial()
+UChar XmlLexer::getSpecial()
 {
-    Token token;
-    token.type = unspecified;
-    token.content = "";
+    UChar content;
 
     if (it.current() == 'l')
     {
@@ -183,8 +212,7 @@ XmlLexer::Token XmlLexer::readSpecial()
             if (it.current() == ';')
             {
                 it.next();
-                token.type = specialChar;
-                token.content = '<';
+                content = '<';
             }
         }
     }
@@ -197,8 +225,7 @@ XmlLexer::Token XmlLexer::readSpecial()
             if (it.current() == ';')
             {
                 it.next();
-                token.type = specialChar;
-                token.content = '>';
+                content = '>';
             }
         }
     }
@@ -214,143 +241,135 @@ XmlLexer::Token XmlLexer::readSpecial()
                 if (it.current() == ';')
                 {
                     it.next();
-                    token.type = specialChar;
-                    token.content = '&';
+                    content = '&';
                 }
             }
         }
     }
-    if (token.type != unspecified)
-        return token;
-    throw -1;
+    else
+        throw -1;
+
+    return content;
 }
 //*********************************************************************************************************************
 XmlLexer::Token XmlLexer::readWhenKeyExpected()
 {
     Token token;
-    token.type = unspecified;
-    token.content = "";
-
-    skipWhite();
-
-    if (!it.hasNext())
+    do
     {
-        token.type = endOfFile;
+        token.type = unspecified;
         token.content = "";
-    }
 
-    else if (it.current() == '=')    // Equals token
-    {
-        it.next();
-        token.type = equals;
-    }
-    else if (it.current() == '>')   // End of tag
-    {
-        it.next();
-        token.type = tagEnd;
-    }
-    else if (it.current() == '\'')
-    {
-        it.next();
-        token.type = singleQuote;
-    }
-    else if (it.current() == '"')
-    {
-        it.next();
-        token.type = doubleQuote;
-    }
-    else if (it.current() == '&')
-    {
-        it.next();
-        if (it.current() == '#')    // Hex escape
+        skipWhite();
+
+        if (!it.hasNext())
+        {
+            token.type = endOfFile;
+            token.content = "";
+        }
+
+        else if (it.current() == '=')    // Equals token
         {
             it.next();
-            token.type = hex;
+            token.type = equals;
         }
-        else    // Special character
-        {
-            token.type = special;
-        }
-    }
-    else if (it.current() == '-')
-    {
-        it.next();
-        if (it.current() == '-')
+        else if (it.current() == '>')   // End of tag
         {
             it.next();
-            if (it.current() == '>')
+            token.type = tagEnd;
+        }
+        else if (it.current() == '\'')
+        {
+            it.next();
+            token.type = singleQuote;
+        }
+        else if (it.current() == '"')
+        {
+            it.next();
+            token.type = doubleQuote;
+        }
+        else if (it.current() == '&')
+        {
+            it.next();
+            if (it.current() == '#')    // Hex escape
             {
                 it.next();
-                token.type = endComment;
+                token.type = hex;
             }
-        }
-    }
-
-    else if (it.current() == '/')
-    {
-        it.next();
-        if(it.current() == '>')
-        {
-            it.next();
-            token.type = emptyTagEnd;
-        }
-    }
-
-    else if (it.current() == '<')
-    {
-        it.next();
-
-        if (it.current() == '?')    // XML opening tag
-        {
-            token.type = xmlTagOpen;
-            it.next();
-        }
-        else if (it.current() == '!')
-        {
-            it.next();
-            if (it.current() == '-')
+            else    // Special character
             {
-                it.next();
-                if (it.current() == '-')    // Comment opening tag
-                {
-                    it.next();
-                    token.type = startComment;
-                }
-            }
-            else    // Doctype opening tag
-            {
-                token.type = doctypeTagOpen;
-                return token;
+                token.type = special;
             }
         }
+
         else if (it.current() == '/')
         {
             it.next();
+            if(it.current() == '>')
             {
-                token.type = closingTagStart;
+                it.next();
+                token.type = emptyTagEnd;
             }
-
         }
-        else
-        {
-            token.type = tagStart;
-        }
-    }
 
-    else if (it.current() == '?')
-    {
-        it.next();
-        if (it.current() == '>')  // XML closing tag
+        else if (it.current() == '<')
         {
             it.next();
-            token.type = xmlTagClose;
-        }
-    }
 
-    else // keyToken
-    {
-        return readKey();
-    }
+            if (it.current() == '?')    // XML opening tag
+            {
+                token.type = xmlTagOpen;
+                it.next();
+            }
+            else if (it.current() == '!')
+            {
+                it.next();
+                if (it.current() == '-')
+                {
+                    it.next();
+                    if (it.current() == '-')    // Comment opening tag
+                    {
+                        it.next();
+                        token.type = comment;
+                        readComment();
+                    }
+                }
+                else    // Doctype opening tag
+                {
+                    token.type = doctypeTagOpen;
+                    return token;
+                }
+            }
+            else if (it.current() == '/')
+            {
+                it.next();
+                {
+                    token.type = closingTagStart;
+                }
+
+            }
+            else
+            {
+                token.type = tagStart;
+            }
+        }
+
+        else if (it.current() == '?')
+        {
+            it.next();
+            if (it.current() == '>')  // XML closing tag
+            {
+                it.next();
+                token.type = xmlTagClose;
+            }
+        }
+
+        else // keyToken
+        {
+            return readKey();
+        }
+
+    } while (token.type == comment);
 
     if (token.type != unspecified)
         return token;

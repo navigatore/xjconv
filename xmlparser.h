@@ -3,40 +3,49 @@
 
 #include "xmllexer.h"
 #include "element.h"
-#include "complexelement.h"
 #include <memory>
 
 class XmlParser
 {
 public:
-    typedef std::shared_ptr<ComplexElement> ComplexElementP;
-
     XmlParser(UnicodeString input);
-    ComplexElementP getDom() { return domRoot; }
+    ElementP getDom() { return domRoot; }
 
 private:
-
-    void documentRule(ComplexElementP elem);
-    void prologRule(ComplexElementP elem);
-    void xmlTagRule(ComplexElementP elem);
-    void attributeRule(ComplexElementP elem);
-    void nameRule(ComplexElementP elem);
+    void documentRule(ElementP elem);
+    void prologRule(ElementP elem);
+    void xmlTagRule(ElementP elem);
+    void attributeRule(ElementP elem);
+    void nameRule(ElementP elem, bool isAttribute = false);
     void nameStartCharRule();
     void nameCharRule();
-    void valueRule();
+    void valueRule(ElementP elem);
     void valueCharRule();
     void charRule();
-    void elementRule(ComplexElementP elem);
+    bool elementRule(ElementP elem);
     void closingTagRule();
     void tagFrontRule();
-    void tagInteriorRule(ComplexElementP elem);
-    void doctypeTagRule();
+    void tagInteriorRule(ElementP elem);
+    void doctypeTagRule(ElementP elem);
     void hexTokenRule();
     void hexRule();
 
+    void take(XmlLexer::TokenType tokenType, XmlLexer::TokenType nextExpectedType);
+    void takeTagStart();
+    void takeEmptyTagEnd();
+    void takeTagEnd();
+    void takeString();
+    void takeClosingTagStart();
+    void takeEquals();
+    void takeXmlTagOpen();
+    void takeXmlTagClose();
+    void takeDoctypeTagOpen();
+
+    void skipComments(XmlLexer::TokenType expected);
+
     XmlLexer lexer;
     XmlLexer::Token token;
-    ComplexElementP domRoot;
+    ElementP domRoot;
 };
 
 #endif // XMLPARSER_H
