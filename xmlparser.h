@@ -3,7 +3,7 @@
 
 #include "xmllexer.h"
 #include "element.h"
-#include <memory>
+#include <stack>
 
 class XmlParser
 {
@@ -17,20 +17,14 @@ private:
     void xmlTagRule(ElementP elem);
     void attributeRule(ElementP elem);
     void nameRule(ElementP elem, bool isAttribute = false);
-    void nameStartCharRule();
-    void nameCharRule();
     void valueRule(ElementP elem);
     void valueCharRule();
-    void charRule();
     bool elementRule(ElementP elem);
     void closingTagRule();
-    void tagFrontRule();
     void tagInteriorRule(ElementP elem);
     void doctypeTagRule(ElementP elem);
-    void hexTokenRule();
-    void hexRule();
 
-    void take(XmlLexer::TokenType tokenType, XmlLexer::TokenType nextExpectedType);
+    bool take(XmlLexer::TokenType tokenType, XmlLexer::TokenType nextExpectedType);
     void takeTagStart();
     void takeEmptyTagEnd();
     void takeTagEnd();
@@ -46,6 +40,7 @@ private:
     XmlLexer lexer;
     XmlLexer::Token token;
     ElementP domRoot;
+    std::stack<UnicodeString> stack;
 };
 
 #endif // XMLPARSER_H

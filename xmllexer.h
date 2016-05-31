@@ -1,9 +1,7 @@
 #ifndef XMLLEXER_H
 #define XMLLEXER_H
 
-#include <unicode/unistr.h>
-#include <unicode/ustream.h>
-#include <iostream>
+#include "xmlerror.h"
 #include <unicode/schriter.h>
 
 class XmlLexer
@@ -14,9 +12,10 @@ public:
     {
         TokenType type;
         UnicodeString content;
+        unsigned int line, charNo;
     };
 
-    XmlLexer(UnicodeString &input);
+    XmlLexer(UnicodeString &input) : it(input), line(1), charNo(1) { }
     Token read(TokenType expected);
 
 private:
@@ -30,15 +29,16 @@ private:
     Token readComment();
     Token readString();
     Token readValue();
-    UChar getHex();
-    UChar getSpecial();
     Token readKey();
     Token readWhenKeyExpected();
+    UChar getHex();
+    UChar getSpecial();
 
     void skipWhite();
+    void next();
 
     StringCharacterIterator it;
-    int pos;
+    unsigned int line, charNo;
 };
 
 #endif // XMLLEXER_H

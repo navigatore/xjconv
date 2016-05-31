@@ -1,7 +1,5 @@
 #include "xmllexer.h"
 //*********************************************************************************************************************
-XmlLexer::XmlLexer(UnicodeString &input) : it(input), pos(0) { }
-//*********************************************************************************************************************
 XmlLexer::Token XmlLexer::read(TokenType expected)
 {
     if (expected == string)
@@ -75,7 +73,7 @@ int XmlLexer::valueOfHex(UChar c)
         return b;
     }
     else
-        throw -1;
+        throw LexerError("Hex digit expected", line, charNo);
 }
 //*********************************************************************************************************************
 XmlLexer::Token XmlLexer::readComment()
@@ -86,13 +84,13 @@ XmlLexer::Token XmlLexer::readComment()
     {
         if (prev2 == '-' && prev1 == '-' && it.current() == '>')
         {
-            it.next();
+            next();
             break;
         }
         builder.append(prev2);
         prev2 = prev1;
         prev1 = it.current();
-        it.next();
+        next();
     }
     builder.remove(0, 2);
     Token token;
@@ -103,15 +101,19 @@ XmlLexer::Token XmlLexer::readComment()
 //*********************************************************************************************************************
 XmlLexer::Token XmlLexer::readString()
 {
+    Token token;
+    token.type = string;
+    token.line = line;
+    token.charNo = charNo;
     UnicodeString builder = "";
     while (currentIsStringChar())
     {
         if (it.current() == '&')
         {
-            it.next();
+            next();
             if (it.hasNext() && it.current() == '#')
             {
-                it.next();
+                next();
                 builder.append(getHex());
             }
             else if (it.hasNext())
@@ -119,16 +121,15 @@ XmlLexer::Token XmlLexer::readString()
                 builder.append(getSpecial());
             }
             else
-                throw -1;
+                throw LexerError("'#' or special character expected", line, charNo);
         }
         else
         {
             builder.append(it.current());
-            it.next();
+            next();
         }
     }
-    Token token;
-    token.type = string;
+
     token.content = builder;
 
     bool onlyWhite = true;
@@ -149,15 +150,20 @@ XmlLexer::Token XmlLexer::readString()
 //*********************************************************************************************************************
 XmlLexer::Token XmlLexer::readValue()
 {
+    Token token;
+    token.type = value;
+    token.line = line;
+    token.charNo = charNo;
+
     UnicodeString builder = "";
     while (currentIsValueChar())
     {
         if (it.current() == '&')
         {
-            it.next();
+            next();
             if (it.hasNext() && it.current() == '#')
             {
-                it.next();
+                next();
                 builder.append(getHex());
             }
             else if (it.hasNext())
@@ -165,16 +171,15 @@ XmlLexer::Token XmlLexer::readValue()
                 builder.append(getSpecial());
             }
             else
-                throw -1;
+                throw LexerError("Unexpected end of file", line, charNo);
         }
         else
         {
             builder.append(it.current());
-            it.next();
+            next();
         }
     }
-    Token token;
-    token.type = value;
+
     token.content = builder;
     return token;
 }
@@ -188,66 +193,71 @@ UChar XmlLexer::getHex()
     {
         escaped <<= 4;
         escaped += valueOfHex(it.current());
-        it.next();
+        next();
     }
     if (i == 4 && it.hasNext() && it.current() == ';')
     {
-        it.next();
+        next();
         builder=static_cast<UChar>(escaped);
         return builder;
     }
-    throw -1;
+    throw LexerError("4 hex digits expected", line, charNo);
 }
 //*********************************************************************************************************************
 UChar XmlLexer::getSpecial()
 {
     UChar content;
+    bool recognized = false;
 
     if (it.current() == 'l')
     {
-        it.next();
+        next();
         if (it.current() == 't')
         {
-            it.next();
+            next();
             if (it.current() == ';')
             {
-                it.next();
+                next();
                 content = '<';
+                recognized = true;
             }
         }
     }
     else if (it.current() == 'g')
     {
-        it.next();
+        next();
         if (it.current() == 't')
         {
-            it.next();
+            next();
             if (it.current() == ';')
             {
-                it.next();
+                next();
                 content = '>';
+                recognized = true;
             }
         }
     }
     else if (it.current() == 'a')
     {
-        it.next();
+        next();
         if (it.current() == 'm')
         {
-            it.next();
+            next();
             if (it.current() == 'p')
             {
-                it.next();
+                next();
                 if (it.current() == ';')
                 {
-                    it.next();
+                    next();
                     content = '&';
+                    recognized = true;
                 }
             }
         }
     }
-    else
-        throw -1;
+
+    if (!recognized)
+        throw LexerError("Special character not recognized", line, charNo);
 
     return content;
 }
@@ -261,6 +271,8 @@ XmlLexer::Token XmlLexer::readWhenKeyExpected()
         token.content = "";
 
         skipWhite();
+        token.line = line;
+        token.charNo = charNo;
 
         if (!it.hasNext())
         {
@@ -270,30 +282,30 @@ XmlLexer::Token XmlLexer::readWhenKeyExpected()
 
         else if (it.current() == '=')    // Equals token
         {
-            it.next();
+            next();
             token.type = equals;
         }
         else if (it.current() == '>')   // End of tag
         {
-            it.next();
+            next();
             token.type = tagEnd;
         }
         else if (it.current() == '\'')
         {
-            it.next();
+            next();
             token.type = singleQuote;
         }
         else if (it.current() == '"')
         {
-            it.next();
+            next();
             token.type = doubleQuote;
         }
         else if (it.current() == '&')
         {
-            it.next();
+            next();
             if (it.current() == '#')    // Hex escape
             {
-                it.next();
+                next();
                 token.type = hex;
             }
             else    // Special character
@@ -304,32 +316,32 @@ XmlLexer::Token XmlLexer::readWhenKeyExpected()
 
         else if (it.current() == '/')
         {
-            it.next();
+            next();
             if(it.current() == '>')
             {
-                it.next();
+                next();
                 token.type = emptyTagEnd;
             }
         }
 
         else if (it.current() == '<')
         {
-            it.next();
+            next();
 
             if (it.current() == '?')    // XML opening tag
             {
                 token.type = xmlTagOpen;
-                it.next();
+                next();
             }
             else if (it.current() == '!')
             {
-                it.next();
+                next();
                 if (it.current() == '-')
                 {
-                    it.next();
+                    next();
                     if (it.current() == '-')    // Comment opening tag
                     {
-                        it.next();
+                        next();
                         token.type = comment;
                         readComment();
                     }
@@ -342,7 +354,7 @@ XmlLexer::Token XmlLexer::readWhenKeyExpected()
             }
             else if (it.current() == '/')
             {
-                it.next();
+                next();
                 {
                     token.type = closingTagStart;
                 }
@@ -356,10 +368,10 @@ XmlLexer::Token XmlLexer::readWhenKeyExpected()
 
         else if (it.current() == '?')
         {
-            it.next();
+            next();
             if (it.current() == '>')  // XML closing tag
             {
-                it.next();
+                next();
                 token.type = xmlTagClose;
             }
         }
@@ -373,34 +385,49 @@ XmlLexer::Token XmlLexer::readWhenKeyExpected()
 
     if (token.type != unspecified)
         return token;
-    throw -1;
+    throw LexerError("Not recognized token", line, charNo);
 }
 //*********************************************************************************************************************
 XmlLexer::Token XmlLexer::readKey()
 {
+    Token token;
+    token.type = key;
+    token.line = line;
+    token.charNo = charNo;
     if (currentIsKeyFirstChar())
     {
         UnicodeString builder = "";
         builder.append(it.current());
-        it.next();
+        next();
         while (currentIsKeyChar())
         {
             builder.append(it.current());
-            it.next();
+            next();
         }
-        Token token;
-        token.type = key;
+
         token.content = builder;
         return token;
     }
-    throw -1;
+    throw LexerError("Key first char expected", line, charNo);
 }
 //*********************************************************************************************************************
 void XmlLexer::skipWhite()
 {
     while (it.current() == ' ' || it.current() == '\t' || it.current() == '\n' || it.current() == '\r')
     {
-        it.next();
+        next();
     }
+}
+//*********************************************************************************************************************
+void XmlLexer::next()
+{
+    if (it.current() == '\n')
+    {
+        line++;
+        charNo = 1;
+    }
+    else
+        charNo++;
+    it.next();
 }
 //*********************************************************************************************************************

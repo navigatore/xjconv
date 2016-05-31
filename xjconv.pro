@@ -10,6 +10,7 @@ SOURCES += main.cpp \
 HEADERS += \
     xmllexer.h \
     xmlparser.h \
-    element.h
+    element.h \
+    xmlerror.h
 
 LIBS += -licuio -licuuc

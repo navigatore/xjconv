@@ -25,7 +25,7 @@ void XmlParser::prologRule(ElementP elem)
         else if (token.type == XmlLexer::doctypeTagOpen)
             doctypeTagRule(elem);
         else
-            throw -1;
+            throw ParserError("'<?' or '<!' expected", token.line, token.charNo);
     } while (token.type == XmlLexer::xmlTagOpen || token.type == XmlLexer::doctypeTagOpen);
 }
 //*********************************************************************************************************************
@@ -67,11 +67,12 @@ bool XmlParser::elementRule(ElementP root)
         else if(token.type == XmlLexer::tagEnd)
         {
             takeTagEnd();
+            stack.push(tagElem->getName());
             while(elementRule(tagElem));
             closingTagRule();
         }
         else
-            throw -1;
+            throw ParserError("'/>' or '>' expected", token.line, token.charNo);
     }
     else if (token.type == XmlLexer::string)
     {
@@ -80,7 +81,7 @@ bool XmlParser::elementRule(ElementP root)
         root->addElement(stringElem);
     }
     else
-        throw -1;
+        throw ParserError("'<' or string expected", token.line, token.charNo);
 
     return true;
 }
@@ -124,7 +125,7 @@ void XmlParser::valueRule(ElementP elem)
         elem->setName(token.content);
         token = lexer.read(XmlLexer::key);
         if (token.type != XmlLexer::doubleQuote)
-            throw -1;
+            throw ParserError("'\"' expected", token.line, token.charNo);
     }
     else if (token.type == XmlLexer::singleQuote)
     {
@@ -132,10 +133,10 @@ void XmlParser::valueRule(ElementP elem)
         elem->setName(token.content);
         token = lexer.read(XmlLexer::key);
         if (token.type != XmlLexer::singleQuote)
-            throw -1;
+            throw ParserError("''' expected", token.line, token.charNo);
     }
     else
-        throw -1;
+        throw ParserError("'\"' or ''' expected", token.line, token.charNo);
     token = lexer.read(XmlLexer::key);
 }
 //*********************************************************************************************************************
@@ -143,62 +144,73 @@ void XmlParser::closingTagRule()
 {
     takeClosingTagStart();
     if(token.type != XmlLexer::key)
-        throw -1;
+        throw ParserError("key expected", token.line, token.charNo);
+    if(token.content != stack.top())
+        throw ParserError("unexpected closing tag", token.line, token.charNo);
+    stack.pop();
     token = lexer.read(XmlLexer::key);
     takeTagEnd();
 }
 //*********************************************************************************************************************
 void XmlParser::takeTagStart()
 {
-    take(XmlLexer::tagStart, XmlLexer::key);
+    if(!take(XmlLexer::tagStart, XmlLexer::key))
+        throw ParserError("< expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeEmptyTagEnd()
 {
-    take(XmlLexer::emptyTagEnd, XmlLexer::string);
+    if(!take(XmlLexer::emptyTagEnd, XmlLexer::string))
+        throw ParserError("/> expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeTagEnd()
 {
-    take(XmlLexer::tagEnd, XmlLexer::string);
+    if(!take(XmlLexer::tagEnd, XmlLexer::string))
+        throw ParserError("> expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeString()
 {
-    take(XmlLexer::string, XmlLexer::key);
+    if(!take(XmlLexer::string, XmlLexer::key))
+        throw ParserError("string expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeClosingTagStart()
 {
-    take(XmlLexer::closingTagStart, XmlLexer::key);
+    if(!take(XmlLexer::closingTagStart, XmlLexer::key))
+        throw ParserError("'</' expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeEquals()
 {
-    take(XmlLexer::equals, XmlLexer::key);
+    if(!take(XmlLexer::equals, XmlLexer::key))
+        throw ParserError("'=' expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeXmlTagOpen()
 {
-    take(XmlLexer::xmlTagOpen, XmlLexer::key);
+    if(!take(XmlLexer::xmlTagOpen, XmlLexer::key))
+        throw ParserError("'<?' expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeXmlTagClose()
 {
-    take(XmlLexer::xmlTagClose, XmlLexer::string);
+    if(!take(XmlLexer::xmlTagClose, XmlLexer::string))
+        throw ParserError("'?>' expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
 void XmlParser::takeDoctypeTagOpen()
 {
-    take(XmlLexer::doctypeTagOpen, XmlLexer::key);
+    if(!take(XmlLexer::doctypeTagOpen, XmlLexer::key))
+        throw ParserError("'<!' expected", token.line, token.charNo);
 }
 //*********************************************************************************************************************
-void XmlParser::take(XmlLexer::TokenType tokenType, XmlLexer::TokenType nextExpectedType)
+bool XmlParser::take(XmlLexer::TokenType tokenType, XmlLexer::TokenType nextExpectedType)
 {
     if (token.type != tokenType)
-    {
-        throw -1;
-    }
+        return false;
     token = lexer.read(nextExpectedType);
+    return true;
 }
 //*********************************************************************************************************************

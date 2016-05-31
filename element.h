@@ -1,7 +1,6 @@
 #ifndef ELEMENT_H
 #define ELEMENT_H
 
-#include <unicode/unistr.h>
 #include <memory>
 #include <vector>
 
@@ -19,8 +18,6 @@ public:
     void setNameAfterMap(UnicodeString name) { this->nameAfterMap = name; }
 
     void addElement(std::shared_ptr<Element> element) { children.push_back(element); }
-
-    virtual bool complex() { return true; }
 
 private:
     UnicodeString name, nameAfterMap;

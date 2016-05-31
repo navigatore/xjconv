@@ -1,35 +1,21 @@
-/*
- * TODO
- *
- * Refactor
- *
-*/
-#include <unicode/unistr.h>
-#include <unicode/ustring.h>
+#include "xmlparser.h"
+#include "xmlerror.h"
 #include <unicode/ustream.h>
 #include <iostream>
 #include <fstream>
-#include <string>
 #include <cstring>
-#include <sstream>
-#include <iterator>
-#include "xmlparser.h"
-#include <memory>
-#include "element.h"
-
-using namespace std;
 
 void analyzeDom(std::shared_ptr<Element> root, int offset = 0);
 
 //*********************************************************************************************************************
 int main(int argc, char* argv[])
 {
-    istream *is = &cin;
-    ifstream ifs;
+    std::istream *is = &std::cin;
+    std::ifstream ifs;
 
     if (!(argc % 2))
     {
-        cout << "Improper usage!" << endl;
+        std::cout << "Improper usage!" << std::endl;
         return -1;
     }
     for (int i = 1; i < argc; i += 2)
@@ -39,33 +25,40 @@ int main(int argc, char* argv[])
             ifs.open(argv[i+1]);
             if(!ifs)
             {
-                cout << "Input file does not exist!" << endl;
+                std::cout << "Input file does not exist!" << std::endl;
                 return -1;
             }
             is = &ifs;
         }
     }
 
-    string input_string((std::istreambuf_iterator<char>(*is)), std::istreambuf_iterator<char>());
+    std::string input_string((std::istreambuf_iterator<char>(*is)), std::istreambuf_iterator<char>());
     UnicodeString input(input_string.c_str());
 
-    XmlParser parser(input);
+    try
+    {
+        XmlParser parser(input);
 
-    std::shared_ptr<Element> dom = parser.getDom();
+        std::shared_ptr<Element> dom = parser.getDom();
 
-    analyzeDom(dom);
+        analyzeDom(dom);
+    }
+    catch(XmlError &e)
+    {
+        std::cout << e.reasonStr() << std::endl;
+    }
 }
 //*********************************************************************************************************************
 void printOffset(int offset)
 {
     for (int i = 0 ; i < offset ; ++i)
-        cout << "|   ";
+        std::cout << "|   ";
 }
-
+//*********************************************************************************************************************
 void analyzeDom(ElementP root, int offset)
 {
     printOffset(offset);
-    cout << root->getName() << endl;
+    std::cout << root->getName() << std::endl;
 
     for (auto child : root->getChildren())
         analyzeDom(child, offset+1);
