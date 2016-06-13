@@ -5,6 +5,7 @@
 #include <fstream>
 #include <cstring>
 
+
 void analyzeDom(std::shared_ptr<Element> root, int offset = 0);
 
 //*********************************************************************************************************************

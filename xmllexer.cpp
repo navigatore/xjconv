@@ -1,21 +1,5 @@
 #include "xmllexer.h"
 //*********************************************************************************************************************
-XmlLexer::Token XmlLexer::read(TokenType expected)
-{
-    if (expected == string)
-    {
-        return readString();
-    }
-    if (expected == value)
-    {
-        return readValue();
-    }
-    else    // expected -> key
-    {
-        return readWhenKeyExpected();
-    }
-}
-//*********************************************************************************************************************
 bool XmlLexer::currentIsStringChar()
 {
     return it.hasNext() && ( it.current() != '<' && it.current() != '>');
@@ -76,35 +60,9 @@ int XmlLexer::valueOfHex(UChar c)
         throw LexerError("Hex digit expected", line, charNo);
 }
 //*********************************************************************************************************************
-XmlLexer::Token XmlLexer::readComment()
-{
-    UChar prev1 = '.', prev2 = '.';
-    UnicodeString builder = "";
-    while(it.hasNext())
-    {
-        if (prev2 == '-' && prev1 == '-' && it.current() == '>')
-        {
-            next();
-            break;
-        }
-        builder.append(prev2);
-        prev2 = prev1;
-        prev1 = it.current();
-        next();
-    }
-    builder.remove(0, 2);
-    Token token;
-    token.type = comment;
-    token.content = builder;
-    return token;
-}
-//*********************************************************************************************************************
 XmlLexer::Token XmlLexer::readString()
 {
-    Token token;
-    token.type = string;
-    token.line = line;
-    token.charNo = charNo;
+    auto t = createToken();
     UnicodeString builder = "";
     while (currentIsStringChar())
     {
@@ -130,32 +88,33 @@ XmlLexer::Token XmlLexer::readString()
         }
     }
 
-    token.content = builder;
+    if(onlyWhite(builder))
+        return readOther();
 
-    bool onlyWhite = true;
-    for(int i = 0 ; i < token.content.length() ; ++i)
-    {
-        if (! (token.content[i] == '\t' || token.content[i] == ' ' || token.content[i] == '\r' || token.content[i] == '\n') )
-        {
-            onlyWhite = false;
-            break;
-        }
-    }
-
-    if(onlyWhite)
-        token = read(key);
-
-    return token;
+    t.set(string, builder);
+    return t;
 }
 //*********************************************************************************************************************
-XmlLexer::Token XmlLexer::readValue()
+bool XmlLexer::onlyWhite(UnicodeString s)
 {
-    Token token;
-    token.type = value;
-    token.line = line;
-    token.charNo = charNo;
-
+    for(int i = 0 ; i < s.length() ; ++i)
+    {
+        if (!(s[i] == '\t' || s[i] == ' ' || s[i] == '\r' || s[i] == '\n'))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+//*********************************************************************************************************************
+XmlLexer::Token XmlLexer::readValue(Token t)
+{
     UnicodeString builder = "";
+    bool doubleQuote = (it.current() == '"');
+    if (!doubleQuote && it.current() != '\'')
+        throw LexerError("Single or double quote mark expected", line, charNo);
+
+    next();
     while (currentIsValueChar())
     {
         if (it.current() == '&')
@@ -180,8 +139,22 @@ XmlLexer::Token XmlLexer::readValue()
         }
     }
 
-    token.content = builder;
-    return token;
+    if (doubleQuote)
+    {
+        if (it.current() != '"')
+        {
+            throw LexerError("Double quote mark expected", line, charNo);
+        }
+    }
+    else
+    {
+        if (it.current() != '\'')
+        {
+            throw LexerError("Single quote mark expeted", line, charNo);
+        }
+    }
+    t.set(value, builder);
+    return t;
 }
 //*********************************************************************************************************************
 UChar XmlLexer::getHex()
@@ -262,138 +235,95 @@ UChar XmlLexer::getSpecial()
     return content;
 }
 //*********************************************************************************************************************
-XmlLexer::Token XmlLexer::readWhenKeyExpected()
+XmlLexer::Token XmlLexer::readOther()
 {
-    Token token;
-    do
+    skipWhite();
+    auto t = createToken();
+
+    if (!it.hasNext())
     {
-        token.type = unspecified;
-        token.content = "";
+        t.set(endOfFile);
+        return t;
+    }
+    if (it.current() == '=')    // Equals token
+    {
+        next();
+        return readValue(t);
+    }
+    if (it.current() == '>')   // End of tag
+    {
+        next();
+        t.set(tagEnd);
+        return t;
+    }
+    if (it.current() == '/')
+    {
+        next();
+        return readEmptyTagEnd(t);
+    }
+    if (it.current() == '<')
+    {
+        next();
+        return readTagOpen(t);
+    }
+    if (it.current() == '?')
+    {
+        next();
+        return readXmlTagClose(t);
+    }
 
-        skipWhite();
-        token.line = line;
-        token.charNo = charNo;
-
-        if (!it.hasNext())
-        {
-            token.type = endOfFile;
-            token.content = "";
-        }
-
-        else if (it.current() == '=')    // Equals token
-        {
-            next();
-            token.type = equals;
-        }
-        else if (it.current() == '>')   // End of tag
-        {
-            next();
-            token.type = tagEnd;
-        }
-        else if (it.current() == '\'')
-        {
-            next();
-            token.type = singleQuote;
-        }
-        else if (it.current() == '"')
-        {
-            next();
-            token.type = doubleQuote;
-        }
-        else if (it.current() == '&')
-        {
-            next();
-            if (it.current() == '#')    // Hex escape
-            {
-                next();
-                token.type = hex;
-            }
-            else    // Special character
-            {
-                token.type = special;
-            }
-        }
-
-        else if (it.current() == '/')
-        {
-            next();
-            if(it.current() == '>')
-            {
-                next();
-                token.type = emptyTagEnd;
-            }
-        }
-
-        else if (it.current() == '<')
-        {
-            next();
-
-            if (it.current() == '?')    // XML opening tag
-            {
-                token.type = xmlTagOpen;
-                next();
-            }
-            else if (it.current() == '!')
-            {
-                next();
-                if (it.current() == '-')
-                {
-                    next();
-                    if (it.current() == '-')    // Comment opening tag
-                    {
-                        next();
-                        token.type = comment;
-                        readComment();
-                    }
-                }
-                else    // Doctype opening tag
-                {
-                    token.type = doctypeTagOpen;
-                    return token;
-                }
-            }
-            else if (it.current() == '/')
-            {
-                next();
-                {
-                    token.type = closingTagStart;
-                }
-
-            }
-            else
-            {
-                token.type = tagStart;
-            }
-        }
-
-        else if (it.current() == '?')
-        {
-            next();
-            if (it.current() == '>')  // XML closing tag
-            {
-                next();
-                token.type = xmlTagClose;
-            }
-        }
-
-        else // keyToken
-        {
-            return readKey();
-        }
-
-    } while (token.type == comment);
-
-    if (token.type != unspecified)
-        return token;
-    throw LexerError("Not recognized token", line, charNo);
+    return readKey();
+}
+//*********************************************************************************************************************
+XmlLexer::Token XmlLexer::readXmlTagClose(Token t)
+{
+    if (it.current() == '>')  // XML closing tag
+    {
+        next();
+        t.set(xmlTagClose);
+        return t;
+    }
+    throw LexerError("'>' expected", line, charNo);
+}
+//*********************************************************************************************************************
+XmlLexer::Token XmlLexer::readTagOpen(Token t)
+{
+    if (it.current() == '?')    // XML opening tag
+    {
+        next();
+        t.set(xmlTagOpen);
+    }
+    else if (it.current() == '!')
+    {
+        next();
+        t.set(doctypeTagOpen);
+    }
+    else if (it.current() == '/')
+    {
+        next();
+        t.set(closingTagStart);
+    }
+    else
+    {
+        t.set(tagStart);
+    }
+    return t;
+}
+//*********************************************************************************************************************
+XmlLexer::Token XmlLexer::readEmptyTagEnd(Token t)
+{
+    if (it.current() == '>')
+    {
+        next();
+        t.set(emptyTagEnd);
+        return t;
+    }
+    throw LexerError("'>' expected", line, charNo);
 }
 //*********************************************************************************************************************
 XmlLexer::Token XmlLexer::readKey()
 {
-    Token token;
-    token.type = key;
-    token.line = line;
-    token.charNo = charNo;
+    auto t = createToken();
     if (currentIsKeyFirstChar())
     {
         UnicodeString builder = "";
@@ -404,9 +334,8 @@ XmlLexer::Token XmlLexer::readKey()
             builder.append(it.current());
             next();
         }
-
-        token.content = builder;
-        return token;
+        t.set(key, builder);
+        return t;
     }
     throw LexerError("Key first char expected", line, charNo);
 }
@@ -421,6 +350,12 @@ void XmlLexer::skipWhite()
 //*********************************************************************************************************************
 void XmlLexer::next()
 {
+    step();
+    skipComments();
+}
+//*********************************************************************************************************************
+void XmlLexer::step()
+{
     if (it.current() == '\n')
     {
         line++;
@@ -429,5 +364,58 @@ void XmlLexer::next()
     else
         charNo++;
     it.next();
+}
+//*********************************************************************************************************************
+void XmlLexer::skipComments()
+{
+    while(true)
+    {
+        bool isComment = false;
+
+        if (it.hasNext() && it.current() == '<')
+        {
+            step();
+            if (it.hasNext() && it.current() == '-')
+            {
+                step();
+                if (it.hasNext() && it.current() == '-')
+                {
+                    isComment = true;
+                }
+                else
+                {
+                    it.previous();
+                    it.previous();
+                }
+            }
+            else
+            {
+                it.previous();
+            }
+        }
+
+        if(!isComment)
+        {
+            break;
+        }
+
+        UChar prev1 = '.', prev2 = '.';
+        while(it.hasNext())
+        {
+            if (prev2 == '-' && prev1 == '-' && it.current() == '>')
+            {
+                step();
+                break;
+            }
+            prev2 = prev1;
+            prev1 = it.current();
+            next();
+        }
+    }
+}
+//*********************************************************************************************************************
+XmlLexer::Token XmlLexer::createToken()
+{
+    return Token(line, charNo);
 }
 //*********************************************************************************************************************
