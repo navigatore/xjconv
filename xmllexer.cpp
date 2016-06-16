@@ -153,6 +153,7 @@ XmlLexer::Token XmlLexer::readValue(Token t)
             throw LexerError("Single quote mark expeted", line, charNo);
         }
     }
+    next();
     t.set(value, builder);
     return t;
 }
@@ -375,12 +376,22 @@ void XmlLexer::skipComments()
         if (it.hasNext() && it.current() == '<')
         {
             step();
-            if (it.hasNext() && it.current() == '-')
+            if (it.hasNext() && it.current() == '!')
             {
                 step();
                 if (it.hasNext() && it.current() == '-')
                 {
-                    isComment = true;
+                    step();
+                    if (it.hasNext() && it.current() == '-')
+                    {
+                        isComment = true;
+                    }
+                    else
+                    {
+                        it.previous();
+                        it.previous();
+                        it.previous();
+                    }
                 }
                 else
                 {
