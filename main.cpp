@@ -27,6 +27,8 @@ int main(int argc, char* argv[])
     std::ifstream cfs;
     std::ofstream ofs;
 
+    bool default_cfg = true;
+
     if (!(argc % 2))
     {
         std::cout << "Improper usage!" << std::endl;
@@ -52,6 +54,7 @@ int main(int argc, char* argv[])
                 std::cout << "Config file does not exist!" << std::endl;
                 return -1;
             }
+            default_cfg = false;
         }
         else if (strcmp(argv[i], "--out") == 0)
         {
@@ -63,6 +66,17 @@ int main(int argc, char* argv[])
             }
             os = &ofs;
         }
+    }
+
+    if (default_cfg)
+    {
+        cfs.open("xjconvert.conf");
+        if(!cfs)
+        {
+            std::cout << "Can't open config file!" << std::endl;
+            return -1;
+        }
+
     }
 
     std::string input_string((std::istreambuf_iterator<char>(*is)), std::istreambuf_iterator<char>());

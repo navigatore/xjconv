@@ -7,16 +7,25 @@
 class XmlLexer
 {
 public:
-    enum TokenType { unspecified, endOfFile, key, value, string, hex, special, comment, tagStart, closingTagStart, tagEnd, emptyTagEnd, xmlTagOpen, xmlTagClose, doctypeTagOpen, equals, specialChar, hexChar,  singleQuote, doubleQuote };
-    struct Token
+    enum TokenType { unspecified, endOfFile, key, value, string, hex, special, tagStart, closingTagStart, tagEnd, emptyTagEnd, xmlTagOpen, xmlTagClose, doctypeTagOpen, specialChar, hexChar };
+    class Token
     {
+    public:
+        Token(unsigned int line, unsigned int charNo) : type(unspecified), content(""), line(line), charNo(charNo)  { }
+        void set(TokenType type, UnicodeString content = "")
+        {
+            this->type = type;
+            this->content = content;
+        }
+
         TokenType type;
         UnicodeString content;
         unsigned int line, charNo;
     };
 
     XmlLexer(UnicodeString &input) : it(input), line(1), charNo(1) { }
-    Token read(TokenType expected);
+    Token readString();
+    Token readOther();
 
 private:
     bool currentIsStringChar();
@@ -24,18 +33,23 @@ private:
     bool currentIsKeyChar();
     bool currentIsKeyFirstChar();
     bool currentIsHexChar();
-    int valueOfHex(UChar c);
+    bool onlyWhite(UnicodeString s);
 
-    Token readComment();
-    Token readString();
-    Token readValue();
+    Token readValue(Token t);
     Token readKey();
-    Token readWhenKeyExpected();
+    Token readXmlTagClose(Token t);
+    Token readTagOpen(Token t);
+    Token readEmptyTagEnd(Token t);
+
     UChar getHex();
     UChar getSpecial();
+    int valueOfHex(UChar c);
 
+    void skipComments();
     void skipWhite();
     void next();
+    void step();
+    Token createToken();
 
     StringCharacterIterator it;
     unsigned int line, charNo;
