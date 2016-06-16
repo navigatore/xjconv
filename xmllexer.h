@@ -7,7 +7,7 @@
 class XmlLexer
 {
 public:
-    enum TokenType { unspecified, endOfFile, key, value, string, hex, special, comment, tagStart, closingTagStart, tagEnd, emptyTagEnd, xmlTagOpen, xmlTagClose, doctypeTagOpen, specialChar, hexChar };
+    enum TokenType { unspecified, endOfFile, key, value, string, hex, special, tagStart, closingTagStart, tagEnd, emptyTagEnd, xmlTagOpen, xmlTagClose, doctypeTagOpen, specialChar, hexChar };
     class Token
     {
     public:

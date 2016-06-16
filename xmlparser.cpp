@@ -20,18 +20,23 @@ ElementP XmlParser::documentRule()
 //*********************************************************************************************************************
 ElementP XmlParser::prologRule()
 {
-    auto root = std::shared_ptr<Element>(new Element("prolog", "prolog"));
+    auto root = ElementP(new Element("prolog", "prolog"));
+
     while (true)
     {
         auto xmlElem = xmlTagRule();
-        auto doctypeElem = doctypeTagRule();
         if (xmlElem != nullptr)
             root->addElement(xmlElem);
-        else if (doctypeElem != nullptr)
-            root->addElement(doctypeElem);
         else
-            break;
+        {
+            auto doctypeElem = doctypeTagRule();
+            if (doctypeElem != nullptr)
+                root->addElement(doctypeElem);
+            else
+                break;
+        }
     }
+
     if (root->getChildren().size() == 0)
         return nullptr;
     return root;
@@ -86,8 +91,8 @@ ElementP XmlParser::mainElementRule()
         {
             token = lexer.readString();
             stack.push(elem->getName());
-            auto nested = elementRule();
-            if (nested != nullptr)
+            ElementP nested;
+            while((nested = elementRule()) != nullptr)
                 elem->addElement(nested);
             closingTagRule();
         }
@@ -140,7 +145,7 @@ ElementP XmlParser::elementRule()
 //*********************************************************************************************************************
 ElementP XmlParser::tagInteriorRule()
 {
-    auto elem = nameRule(false);
+    auto elem = keyNameRule();
     if (elem == nullptr)
         throw ParserError("tag name expected", token.line, token.charNo);
     ElementP attr;
@@ -153,26 +158,46 @@ ElementP XmlParser::tagInteriorRule()
 //*********************************************************************************************************************
 ElementP XmlParser::attributeRule()
 {
-    auto key = nameRule(true);
+    auto key = keyNameRule();
     if (key == nullptr)
         return nullptr;
 
-    if (token.type == XmlLexer::comment)
-    {
-        key->addElement(ElementP(new Element(token.content)));
-    }
+    auto value = valueNameRule();
+    if (value != nullptr)
+        key->addElement(value);
     return key;
 }
 //*********************************************************************************************************************
-ElementP XmlParser::nameRule(bool isAttribute)
+ElementP XmlParser::keyNameRule()
 {
-    if ((!isAttribute && token.type == XmlLexer::key) || (isAttribute && token.type == XmlLexer::value))
+    if (token.type == XmlLexer::key)
     {
         auto elem = ElementP(new Element());
-        if (isAttribute)
-            elem->setName("@" + token.content);
-        else
-            elem->setName(token.content);
+        elem->setName(token.content);
+        token = lexer.readOther();
+        return elem;
+    }
+    return nullptr;
+}
+//*********************************************************************************************************************
+ElementP XmlParser::attributeNameRule()
+{
+    if (token.type == XmlLexer::key)
+    {
+        auto elem = ElementP(new Element());
+        elem->setName("@" + token.content);
+        token = lexer.readOther();
+        return elem;
+    }
+    return nullptr;
+}
+//*********************************************************************************************************************
+ElementP XmlParser::valueNameRule()
+{
+    if (token.type == XmlLexer::value)
+    {
+        auto elem = ElementP(new Element());
+        elem->setName(token.content);
         token = lexer.readOther();
         return elem;
     }
@@ -191,8 +216,10 @@ void XmlParser::closingTagRule()
         throw ParserError("unexpected closing tag", token.line, token.charNo);
     stack.pop();
     token = lexer.readOther();
+
     if (token.type != XmlLexer::tagEnd)
         throw ParserError("'>' expected", token.line, token.charNo);
+
     token = lexer.readString();
 }
 //*********************************************************************************************************************

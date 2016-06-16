@@ -16,7 +16,9 @@ private:
     ElementP prologRule();
     ElementP xmlTagRule();
     ElementP attributeRule();
-    ElementP nameRule(bool isAttribute = false);
+    ElementP keyNameRule();
+    ElementP attributeNameRule();
+    ElementP valueNameRule();
     ElementP mainElementRule();
     ElementP elementRule();
     ElementP tagInteriorRule();
