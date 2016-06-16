@@ -104,6 +104,7 @@ int main(int argc, char* argv[])
         auto generator = JsonGenerator(dom, configTree);
         auto json = generator.getJson();
 
+        std::cout << std::endl;
 
         (*os) << json << std::endl;
     }
