@@ -1,3 +1,12 @@
+/*
+ * TODO
+ * wczytywanie configa
+ * poprawienie new-engine
+ * super wypaśne opcje generacji - np. ten myk z zamianą nazwy
+ * refaktor
+ * dokumentacja
+ */
+
 #include "xmlparser.h"
 #include "xmlerror.h"
 #include "jsongenerator.h"
@@ -12,8 +21,11 @@ void analyzeDom(std::shared_ptr<Element> root, int offset = 0);
 int main(int argc, char* argv[])
 {
     std::istream *is = &std::cin;
+    std::ostream *os = &std::cout;
+
     std::ifstream ifs;
     std::ifstream cfs;
+    std::ofstream ofs;
 
     if (!(argc % 2))
     {
@@ -40,6 +52,16 @@ int main(int argc, char* argv[])
                 std::cout << "Config file does not exist!" << std::endl;
                 return -1;
             }
+        }
+        else if (strcmp(argv[i], "--out") == 0)
+        {
+            ofs.open(argv[i+1]);
+            if(!ofs)
+            {
+                std::cout << "Can't open output file!" << std::endl;
+                return -1;
+            }
+            os = &ofs;
         }
     }
 
@@ -69,7 +91,7 @@ int main(int argc, char* argv[])
         auto json = generator.getJson();
 
 
-        std::cout << json << std::endl;   // TODO-> save to file
+        (*os) << json << std::endl;
     }
     catch(XmlError &e)
     {
