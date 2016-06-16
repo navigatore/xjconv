@@ -3,6 +3,10 @@
 
 #include <memory>
 #include <vector>
+#include <unicode/unistr.h>
+
+class Element;
+typedef std::shared_ptr<Element> ElementP;
 
 class Element
 {
@@ -18,12 +22,34 @@ public:
     void setNameAfterMap(UnicodeString name) { this->nameAfterMap = name; }
 
     void addElement(std::shared_ptr<Element> element) { children.push_back(element); }
+    void eraseIndexesLikeFirst()
+    {
+        auto firstChildName = children[0]->name;
+        for (auto it = children.begin() + 1 ; it != children.end() ; )
+        {
+            if ((*it)->name == firstChildName)
+                it = children.erase(it);
+            else
+                ++it;
+        }
+        children.erase(children.begin());
+    }
+    void pop(int index) { children.erase(children.begin() + index); }
+
+    std::vector<ElementP> getChildrenLikeFirst()
+    {
+        std::vector<ElementP> matchingChildren;
+        UnicodeString name = children[0]->name;
+        for (auto child : children)
+            if (child->name == name)
+                matchingChildren.push_back(child);
+        return matchingChildren;
+    }
 
 private:
     UnicodeString name, nameAfterMap;
-    std::vector<std::shared_ptr<Element>> children;
+    std::vector<ElementP> children;
 };
 
-typedef std::shared_ptr<Element> ElementP;
 
 #endif // ELEMENT_H

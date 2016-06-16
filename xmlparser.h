@@ -12,30 +12,18 @@ public:
     ElementP getDom() { return domRoot; }
 
 private:
-    void documentRule(ElementP elem);
-    void prologRule(ElementP elem);
-    void xmlTagRule(ElementP elem);
-    void attributeRule(ElementP elem);
-    void nameRule(ElementP elem, bool isAttribute = false);
-    void valueRule(ElementP elem);
-    void valueCharRule();
-    bool elementRule(ElementP elem);
+    ElementP documentRule();
+    ElementP prologRule();
+    ElementP xmlTagRule();
+    ElementP attributeRule();
+    ElementP keyNameRule();
+    ElementP attributeNameRule();
+    ElementP valueNameRule();
+    ElementP mainElementRule();
+    ElementP elementRule();
+    ElementP tagInteriorRule();
+    ElementP doctypeTagRule();
     void closingTagRule();
-    void tagInteriorRule(ElementP elem);
-    void doctypeTagRule(ElementP elem);
-
-    bool take(XmlLexer::TokenType tokenType, XmlLexer::TokenType nextExpectedType);
-    void takeTagStart();
-    void takeEmptyTagEnd();
-    void takeTagEnd();
-    void takeString();
-    void takeClosingTagStart();
-    void takeEquals();
-    void takeXmlTagOpen();
-    void takeXmlTagClose();
-    void takeDoctypeTagOpen();
-
-    void skipComments(XmlLexer::TokenType expected);
 
     XmlLexer lexer;
     XmlLexer::Token token;

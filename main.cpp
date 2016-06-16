@@ -1,5 +1,15 @@
+/*
+ * TODO
+ * wczytywanie configa
+ * poprawienie new-engine
+ * super wypaśne opcje generacji - np. ten myk z zamianą nazwy
+ * refaktor
+ * dokumentacja
+ */
+
 #include "xmlparser.h"
 #include "xmlerror.h"
+#include "jsongenerator.h"
 #include <unicode/ustream.h>
 #include <iostream>
 #include <fstream>
@@ -11,7 +21,13 @@ void analyzeDom(std::shared_ptr<Element> root, int offset = 0);
 int main(int argc, char* argv[])
 {
     std::istream *is = &std::cin;
+    std::ostream *os = &std::cout;
+
     std::ifstream ifs;
+    std::ifstream cfs;
+    std::ofstream ofs;
+
+    bool default_cfg = true;
 
     if (!(argc % 2))
     {
@@ -30,18 +46,67 @@ int main(int argc, char* argv[])
             }
             is = &ifs;
         }
+        else if (strcmp(argv[i], "--config") == 0)
+        {
+            cfs.open(argv[i+1]);
+            if(!cfs)
+            {
+                std::cout << "Config file does not exist!" << std::endl;
+                return -1;
+            }
+            default_cfg = false;
+        }
+        else if (strcmp(argv[i], "--out") == 0)
+        {
+            ofs.open(argv[i+1]);
+            if(!ofs)
+            {
+                std::cout << "Can't open output file!" << std::endl;
+                return -1;
+            }
+            os = &ofs;
+        }
+    }
+
+    if (default_cfg)
+    {
+        cfs.open("xjconvert.conf");
+        if(!cfs)
+        {
+            std::cout << "Can't open config file!" << std::endl;
+            return -1;
+        }
+
     }
 
     std::string input_string((std::istreambuf_iterator<char>(*is)), std::istreambuf_iterator<char>());
     UnicodeString input(input_string.c_str());
 
+    std::string config_string((std::istreambuf_iterator<char>(cfs)), std::istreambuf_iterator<char>());
+    UnicodeString config(config_string.c_str());
+
     try
     {
+        std::cout << "Input XML file:" << std::endl;
         XmlParser parser(input);
 
-        std::shared_ptr<Element> dom = parser.getDom();
+        auto dom = parser.getDom();
 
         analyzeDom(dom);
+
+        std::cout << "\nConverter config file:" << std::endl;
+        XmlParser configParser(config);
+
+        auto configTree = configParser.getDom();
+
+        analyzeDom(configTree);
+
+        auto generator = JsonGenerator(dom, configTree);
+        auto json = generator.getJson();
+
+        std::cout << std::endl;
+
+        (*os) << json << std::endl;
     }
     catch(XmlError &e)
     {
